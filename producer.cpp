@@ -12,7 +12,7 @@ struct shmbuf {
     int table[2];
 };
 
-const size_t MEM_SIZE = sizeof(bool[2]) + sizeof(int), + sizeof(int[2]);
+const size_t MEM_SIZE = sizeof(bool[2]) + sizeof(int) + sizeof(int[2]);
 
 int main(int argc, char *argv[]){
     int memFD = 0;
