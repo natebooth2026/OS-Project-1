@@ -4,6 +4,7 @@
 #include <iostream>
 #include <cstring>
 #include <unistd.h>
+#include <semaphore.h>
 
 struct shmbuf {
     bool flag[2];
