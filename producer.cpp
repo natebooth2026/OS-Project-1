@@ -3,22 +3,19 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <semaphore.h>
 #include <cstring>
-#include <vector>
-#include <mutex>
+#include <time.h>
+#include <stdlib.h>
 
 struct shmbuf {
-    int semaphore = 1;
+    sem_t s;
     int table[100];
-    std::vector<std::mutex> buffer;
 };
 
-std::mutex mtx;
+const size_t MEM_SIZE = sizeof(sem_t) + sizeof(int[100]);
 
-const size_t MEM_SIZE = sizeof(int) + sizeof(int[100]) + sizeof(std::vector<std::mutex>);
-
-void wait(int&, shmbuf*);
-void signal(int&, shmbuf*);
+void production(shmbuf*);
 
 int main(){
     srand(time(nullptr));
@@ -33,48 +30,49 @@ int main(){
     }
 
     if(ftruncate(memFD, MEM_SIZE) == -1){
-        fprintf(stderr, "Shared memory truncation error: ");
+        fprintf(stderr, "Shared memory truncation error");
         shm_unlink(SHM_NAME);
         return 1;
     }
 
     shmbuf* shared = (shmbuf*)mmap(NULL, MEM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, memFD, 0);
     if(shared == MAP_FAILED){
-        fprintf(stderr, "Shared memory mapping error: ");
+        fprintf(stderr, "Shared memory mapping error");
         shm_unlink(SHM_NAME);
         return 1;
     }
 
-    int produced = rand() % 1000;
-    int i = 0; //tracks how many times it is run
+    std::memset(shared, 0, MEM_SIZE);
 
-    do {
-        wait(shared->semaphore, shared);
-        if(shared->table[i] == NULL){
-            shared->table[i] = produced;
-            printf("Produced table item: " + shared->table[i]);
-        }
-        signal(shared->semaphore, shared);
-        produced = rand() % 1000;
-        ++i;
-    } while (i < 100);
+    if(sem_init(&shared->s, 1, 1) == -1){
+        fprintf(stderr, "Semaphore initalization error");
+        shm_unlink(SHM_NAME);
+        return 1;
+    }
 
+    for(int i = 0; i < 100; ++i){
+        shared->table[i] = 0;
+    }
+
+    //NEEDS THREADING
+
+    munmap(shared, MEM_SIZE);
     shm_unlink(SHM_NAME);
     return 0;
 }
 
-void wait(int &s, shmbuf* shared){
-    if(s < 0){
-        shared->buffer.push_back(mtx);
-        mtx.lock();
-    }
-    --s;
-}
+void production(shmbuf* shared){
+    int produced = rand() % 1000 + 1;
 
-void signal(int &s, shmbuf* shared){
-    ++s;
-    if(s >= 0){
-        shared->buffer.front().unlock();
-        shared->buffer.erase(shared->buffer.begin());
+    for(int i = 0; i < 100; ++i){
+        sem_wait(&shared->s);
+
+        if(shared->table[i] == 0){
+            shared->table[i] = produced;
+            printf("Produced table item: %d\n", shared->table[i]);
+        }
+        sem_post(&shared->s);
+
+        produced = rand() % 1000 + 1;
     }
 }
