@@ -2,20 +2,26 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <semaphore.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <pthread.h>
 #include <cstring>
+#include <vector>
+#include <mutex>
 
 struct shmbuf {
-    bool lock;
-    int table[2];
+    int semaphore = 1;
+    int table[100];
+    std::vector<std::mutex> buffer;
 };
 
-const size_t MEM_SIZE = sizeof(bool) + sizeof(int[2]);
+std::mutex mtx;
 
-bool test_and_set(bool*);
+const size_t MEM_SIZE = sizeof(int) + sizeof(int[100]) + sizeof(std::vector<std::mutex>);
+
+void wait(int&, shmbuf*);
+void signal(int&, shmbuf*);
 
 int main(int argc, char *argv[]){
     srand(time(nullptr));
@@ -42,26 +48,36 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
-    int produced[2] = {rand() % 1000, rand() % 1000};
-    bool item0 = false;
+    int produced = rand() % 1000;
+    int i = 0; //tracks how many times it is run
+
     do {
-        while(test_and_set(&shared->lock));
-        if(shared->table[0] == NULL){
-            shared->table[0] = produced[0];
-            printf("Produced table item 0: ", shared->table[0]);
-            item0 = true;
-        } else if (shared->table[1] == NULL){
-            shared->table[1] = produced[1];
-            printf("Produced table item 1: ", shared->table[0]);
+        wait(shared->semaphore, shared);
+        if(shared->table[i] == NULL){
+            shared->table[i] = produced;
+            printf("Produced table item: " + shared->table[i]);
         }
-        shared->lock = false;
-        if(item0) {produced[0] = rand(); item0 = false;}
-        else if(!item0) produced[1] = rand();
-    } while (true);
+        signal(shared->semaphore, shared);
+        produced = rand() % 1000;
+        ++i;
+    } while (i < 100);
+
+    shm_unlink(SHM_NAME);
+    return 0;
 }
 
-bool test_and_set(bool *target){
-    bool retVal = *target;
-    *target = true;
-    return retVal;
+void wait(int& s, shmbuf* shared){
+    --s;
+    if(s < 0){
+        shared->buffer.push_back(mtx);
+        mtx.lock();
+    }
+}
+
+void signal(int& s, shmbuf* shared){
+    ++s;
+    if(s >= 0){
+        shared->buffer.front().unlock();
+        shared->buffer.erase(shared->buffer.begin());
+    }
 }

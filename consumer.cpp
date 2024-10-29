@@ -2,8 +2,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <semaphore.h>
 #include <stdio.h>
+#include <pthread.h>
 #include <cstring>
 
 struct shmbuf {
@@ -44,12 +44,12 @@ int main(int argc, char *argv[]){
         while(test_and_set(&shared->lock));
         if(shared->table[0] != NULL){
             consumed[0] = shared->table[0];
-            printf("Consumed table item 0: ", consumed[0]);
+            printf("Consumed table item 0: " + consumed[0]);
             shared->table[0] = NULL;
             item0 = true;
         } else if (shared->table[1] != NULL){
             consumed[1] = shared->table[1];
-            printf("Consumed table item 1: ", consumed[1]);
+            printf("Consumed table item 1: " + consumed[1]);
             shared->table[1] = NULL;
         }
         shared->lock = false;
