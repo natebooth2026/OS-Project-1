@@ -3,19 +3,26 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdio.h>
-#include <pthread.h>
 #include <cstring>
+#include <vector>
+#include <mutex>
 
 struct shmbuf {
-    bool lock = false;
-    int table[2];
+    int semaphore = 1;
+    int table[100];
+    std::vector<std::mutex> buffer;
 };
 
-const size_t MEM_SIZE = sizeof(bool) + sizeof(int[2]);
+std::mutex mtx;
 
-bool test_and_set(bool*);
+const size_t MEM_SIZE = sizeof(int) + sizeof(int[100]) + sizeof(std::vector<std::mutex>);
 
-int main(int argc, char *argv[]){
+void wait(int&, shmbuf*);
+void signal(int&, shmbuf*);
+
+int main(){
+    srand(time(nullptr));
+
     int memFD = 0;
     const char* SHM_NAME = "/table_memory";
 
@@ -38,28 +45,35 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
-    int consumed[2];
-    bool item0 = false;
+    int consumed[100];
+    int i = 0;
     do {
-        while(test_and_set(&shared->lock));
-        if(shared->table[0] != NULL){
-            consumed[0] = shared->table[0];
-            printf("Consumed table item 0: " + consumed[0]);
-            shared->table[0] = NULL;
-            item0 = true;
-        } else if (shared->table[1] != NULL){
-            consumed[1] = shared->table[1];
-            printf("Consumed table item 1: " + consumed[1]);
-            shared->table[1] = NULL;
+        wait(shared->semaphore, shared);
+        if(shared->table[i] != NULL){
+            consumed[i] = shared->table[i];
+            printf("Consumed table item: " + consumed[i]);
+            shared->table[i] = NULL;
         }
-        shared->lock = false;
-        if(item0) {consumed[0] = NULL; item0 = false;}
-        else if(!item0) {consumed[1] = NULL;}
-    } while (true);
+        signal(shared->semaphore, shared);
+        ++i;
+    } while (i < 100);
+
+    shm_unlink(SHM_NAME);
+    return 0;
 }
 
-bool test_and_set(bool *target){
-    bool retVal = *target;
-    *target = true;
-    return retVal;
+void wait(int &s, shmbuf* shared){
+    if(s < 0){
+        shared->buffer.push_back(mtx);
+        mtx.lock();
+    }
+    --s;
+}
+
+void signal(int &s, shmbuf* shared){
+    ++s;
+    if(s >= 0){
+        shared->buffer.front().unlock();
+        shared->buffer.erase(shared->buffer.begin());
+    }
 }

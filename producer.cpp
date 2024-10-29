@@ -3,9 +3,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-#include <pthread.h>
 #include <cstring>
 #include <vector>
 #include <mutex>
@@ -23,7 +20,7 @@ const size_t MEM_SIZE = sizeof(int) + sizeof(int[100]) + sizeof(std::vector<std:
 void wait(int&, shmbuf*);
 void signal(int&, shmbuf*);
 
-int main(int argc, char *argv[]){
+int main(){
     srand(time(nullptr));
 
     int memFD = 0;
@@ -66,15 +63,15 @@ int main(int argc, char *argv[]){
     return 0;
 }
 
-void wait(int& s, shmbuf* shared){
-    --s;
+void wait(int &s, shmbuf* shared){
     if(s < 0){
         shared->buffer.push_back(mtx);
         mtx.lock();
     }
+    --s;
 }
 
-void signal(int& s, shmbuf* shared){
+void signal(int &s, shmbuf* shared){
     ++s;
     if(s >= 0){
         shared->buffer.front().unlock();
