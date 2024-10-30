@@ -7,14 +7,16 @@
 #include <cstring>
 #include <time.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 struct shmbuf {
+    sem_t s;
     int table[100];
 };
 
-const size_t MEM_SIZE = sizeof(int[100]);
+const size_t MEM_SIZE = sizeof(sem_t) + sizeof(int[100]);
 
-void production(shmbuf*);
+void* production(void*);
 
 int main(){
     srand(time(nullptr));
@@ -43,11 +45,8 @@ int main(){
 
     std::memset(shared, 0, MEM_SIZE);
 
-    const char* SEM_NAME = "/p&c";
-
-    sem_t* s = sem_open(SEM_NAME, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, 1);
-    if(s == SEM_FAILED){
-        fprintf(stderr, "Semaphore creation error");
+    if(sem_init(&shared->s, 1, 1) == -1){
+        fprintf(stderr, "Semaphore initalization error");
         shm_unlink(SHM_NAME);
         return 1;
     }
@@ -56,25 +55,62 @@ int main(){
         shared->table[i] = 0;
     }
 
+    pthread_t thread;
+    if(pthread_create(&thread, NULL, production, (void*)shared) != 0){
+        fprintf(stderr, "Production thread creation error\n");
+        shm_unlink(SHM_NAME);
+        return 1;
+    }
+    pthread_join(thread, NULL);
+
+    munmap(shared, MEM_SIZE);
+    shm_unlink(SHM_NAME);
+    return 0;
+}
+
+void* production(void* arg){
+    shmbuf* shared = (shmbuf*)arg;
+
     int produced[2] = {rand() % 1000 + 1, rand() % 1000 + 1};
+    int size = 0;
+    bool full = false;
+    int originalI = 0;
 
-    for(int i = 0; i < 50; ++i){
-        sem_wait(s);
+    for(int i = 0; i < 100; ++i){
+        sem_wait(&shared->s);
 
-        for(int j = 0; j < 2; ++j){
-            if(shared->table[i + j] == 0){
-                shared->table[i + j] = produced[j];
-                printf("Produced table item: %d\n", shared->table[i + j]);
-            }
+        for(int j = 0; j < 100; ++j){
+            if(shared->table[j] != 0){
+                ++size;
+            }           
         }
-        
-        sem_post(s);
+
+        if(size >= 2 && !full) {
+            sem_post(&shared->s);
+            size = 0;
+            full = true;
+            originalI = i;
+            --i;
+            continue;
+        } else if (size >= 2){
+            sem_post(&shared->s);
+            size = 0;
+            i = originalI - 1;
+            continue;
+        } else {
+            full = false;
+        }
+
+        if(shared->table[i] == 0){
+            shared->table[i] = produced[i % 2];
+            printf("Produced table item %d", i + 1);
+            printf(": %d\n", shared->table[i]);
+        }
+
+        sem_post(&shared->s);
         produced[0] = rand() % 1000 + 1;
         produced[1] = rand() % 1000 + 1;
     }
 
-    sem_unlink(SEM_NAME);
-    munmap(shared, MEM_SIZE);
-    shm_unlink(SHM_NAME);
-    return 0;
+    return NULL;
 }
