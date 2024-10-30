@@ -9,11 +9,10 @@
 #include <stdlib.h>
 
 struct shmbuf {
-    sem_t s;
     int table[100];
 };
 
-const size_t MEM_SIZE = sizeof(sem_t) + sizeof(int[100]);
+const size_t MEM_SIZE = sizeof(int[100]);
 
 void production(shmbuf*);
 
@@ -44,8 +43,11 @@ int main(){
 
     std::memset(shared, 0, MEM_SIZE);
 
-    if(sem_init(&shared->s, 1, 1) == -1){
-        fprintf(stderr, "Semaphore initalization error");
+    const char* SEM_NAME = "/p&c";
+
+    sem_t* s = sem_open(SEM_NAME, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, 1);
+    if(s == SEM_FAILED){
+        fprintf(stderr, "Semaphore creation error");
         shm_unlink(SHM_NAME);
         return 1;
     }
@@ -54,25 +56,25 @@ int main(){
         shared->table[i] = 0;
     }
 
-    //NEEDS THREADING
+    int produced[2] = {rand() % 1000 + 1, rand() % 1000 + 1};
 
+    for(int i = 0; i < 50; ++i){
+        sem_wait(s);
+
+        for(int j = 0; j < 2; ++j){
+            if(shared->table[i + j] == 0){
+                shared->table[i + j] = produced[j];
+                printf("Produced table item: %d\n", shared->table[i + j]);
+            }
+        }
+        
+        sem_post(s);
+        produced[0] = rand() % 1000 + 1;
+        produced[1] = rand() % 1000 + 1;
+    }
+
+    sem_unlink(SEM_NAME);
     munmap(shared, MEM_SIZE);
     shm_unlink(SHM_NAME);
     return 0;
-}
-
-void production(shmbuf* shared){
-    int produced = rand() % 1000 + 1;
-
-    for(int i = 0; i < 100; ++i){
-        sem_wait(&shared->s);
-
-        if(shared->table[i] == 0){
-            shared->table[i] = produced;
-            printf("Produced table item: %d\n", shared->table[i]);
-        }
-        sem_post(&shared->s);
-
-        produced = rand() % 1000 + 1;
-    }
 }

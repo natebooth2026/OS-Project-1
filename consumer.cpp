@@ -5,14 +5,12 @@
 #include <stdio.h>
 #include <cstring>
 #include <semaphore.h>
-#include <pthread.h>
 
 struct shmbuf {
-    sem_t s;
     int table[100];
 };
 
-const size_t MEM_SIZE = sizeof(sem_t) + sizeof(int[100]);
+const size_t MEM_SIZE = sizeof(int[100]);
 
 void consumption(shmbuf*);
 
@@ -39,35 +37,36 @@ int main(){
         return 1;
     }
 
-    if(sem_init(&shared->s, 1, 1) == -1){
-        fprintf(stderr, "Semaphore initalization error");
+    const char* SEM_NAME = "/p&c";
+
+    sem_t* s = sem_open(SEM_NAME, 0);
+    if(s == SEM_FAILED){
+        fprintf(stderr, "Semaphore open error");
         shm_unlink(SHM_NAME);
         return 1;
     }
 
+    int consumed = 0;
+
     for(int i = 0; i < 100; ++i){
-        shared->table[i] = 0;
+        sem_wait(s);
+        
+        if(shared->table[i] != 0){
+            consumed = shared->table[i];
+            printf("Consumed table item: %d\n", consumed);
+            shared->table[i] = 0;
+        }
+
+        sem_post(s);
+        consumed = 0;
     }
 
-    //NEEDS THREADING
-
+    sem_unlink(SEM_NAME);
     munmap(shared, MEM_SIZE);
     shm_unlink(SHM_NAME);
     return 0;
 }
 
 void consumption(shmbuf* shared){
-    int consumed[100];
-
-    for(int i = 0; i < 100; ++i){
-        sem_wait(&shared->s);
-
-        if(shared->table[i] != 0){
-            consumed[i] = shared->table[i];
-            printf("Consumed table item: %d\n", consumed[i]);
-            shared->table[i] = 0;
-        }
-
-        sem_post(&shared->s);
-    }
+    
 }
