@@ -44,7 +44,7 @@ There may also be cases where one element is produced and then consumed, like th
 
 <img width="160" alt="singleProduceConsumeExample" src="https://github.com/user-attachments/assets/7c16d7e0-5d96-4576-9f3e-77dcede9e8ac">
 
-This is only because the producer reaches the limit of items to be produced only after items 98 and 99 are consumed, this is a special case that should be expected due to the safety guards in both algorithms and the randomness of who gains control of the semaphore once released.
+This is only because the producer reaches the limit of items to be produced only after items 98 and 99 are consumed, this is a special case that should be expected due to the safety guards in both algorithms and the randomness of who gains control of the semaphore once released. This may occur before item 100.
 
 
 ## Thank You
