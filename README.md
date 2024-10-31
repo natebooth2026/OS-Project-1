@@ -29,15 +29,23 @@ gcc consumer.cpp -pthread -lrt -o consumer
 
 ## Usage/Output Examples to Keep in Mind
 This program randomly generates integers as the produced and consumed items. Two items are produced before the two items are consumed. The dialog printed out (99 more times that is) will look something like this:
+
 <img width="160" alt="exampleOutput" src="https://github.com/user-attachments/assets/677a245f-3ad9-49e7-83b4-2e2fa04475aa">
 
+
 You may also have an output like this:
+
 <img width="160" alt="exampleEndOfOutput" src="https://github.com/user-attachments/assets/34fa76b5-3a0c-45cb-b20c-6e2590185196">
+
 This means the program doesn't finish automatically, the terminal may start looking for an input before the program is done. Just press enter.
 
+
 There may also be cases where one element is produced and then consumed, like this:
+
 <img width="160" alt="singleProduceConsumeExample" src="https://github.com/user-attachments/assets/7c16d7e0-5d96-4576-9f3e-77dcede9e8ac">
+
 This is only because the producer reaches the limit of items to be produced only after items 98 and 99 are consumed, this is a special case that should be expected due to the safety guards in both algorithms and the randomness of who gains control of the semaphore once released.
+
 
 ## Thank You
 Thank you for checking out my project! :D
