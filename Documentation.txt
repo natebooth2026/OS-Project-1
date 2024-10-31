@@ -1,0 +1,53 @@
+Breaking down this project, both the producer and consumer files define a structure
+with a semaphore and a 2-interger array that is passed to shared memory to be modified.
+Then, using sizeof(sem_t) and sizeof(int[2]), the size of the memory needed is stored
+in a global constant MEM_SIZE (again for the use of defining the shared memory). Lastly
+before main(), both functions are prototyped with pthread compatibility (void* func(void*)).
+
+In main(), the producer sets a seed for the random numbers for the item generation. Then, both
+the producer and consumer define a file descriptor, memory name, and open the shared memory
+(as both processes require the shared memory to be opened) using shm_open(). Next, using
+ftruncate(), the memory size is defined as the value of MEM_SIZE as previously calculated.
+Lastly for the memory, the memory is mapped and stored in a pointer to the structure defined
+previously for appropriate use of shared memory using mmap() (type converted to a pointer to
+the structure) and the memory is cleaned out of any garbage using std::memset(). Finally, 
+the semaphore in the structure is initalized with sem_init() in the producer file for use in 
+both files. All of the above listed functions included error guards to protect against any
+failures.
+
+Still in main(), the producer initalizes the table with 0s (described as "nulls" for this program)
+and then both processes define, create, and run the pthread by defining a pthread_t variable,
+using pthread_create() with the process's algorithm function (and void* type converted structure)
+(has an error guard as well), and the runs the algorithm in each process with pthread_join().
+
+In the producer algorithm, the shared memory structure is type converted back to a structure
+pointer and then a few critical things are defined. The array produced is defined to hold two
+produced items, size is declared to hold the size of the table, the boolean full is denotes if
+the table is full, and the variable originalI holds the i value in the for loop when the full
+variable is changed to true. The consumer algorithm does basically the same thing but full is
+renamed to empty to denote if the table is empty and consumed is defined and only holds one value
+at a time.
+
+Next, both algorithms start a 100-iteration for loop starting with waiting for semaphore control.
+After, the size is calculated by checking if both table values are not "null". Then each algorithm
+checks certain conditions: the state of size, and the state of full/empty. In the producer algorithm,
+it checks if the table is full (size >= 2) and if it was not previously empty. If both are true, it
+releases control to the consumer, denotes full as true, stores the i value, decrements i, and continues
+(which will increment i, thus requiring the decrement first). If only the size >= 2, it releases control,
+sets i equal to what value i was when full was made true (minus one due to continue's side effect of increment),
+and continues. If neither are true, full is set to false. The consumer algorithm does something similar but
+deals with empty instead of full, checks if size == 0, and if neither conditions are met, size is reset before
+empty is set to false.
+
+After doing the safety checks, each algorithm either inserts/reads the table values. The producer first checks
+if the current table element is "null", if it is the producer inserts the first produced item (or second if i is odd)
+into the table at i % 2. Then it prints the item number and item it inserted. The consumer algorithm is similar
+except it checks if the element is NOT "null", reads and assigns consumed to the item it is pulling, prints that it
+consumed that item, and then makes the table element "null" again.
+
+Lastly, the algorithms release control after these operations to the next process and each reassign the values for
+produced/consumed (defining two new random numbers in produced and setting consumed to 0). At the very end, the algorithm
+returns the literal NULL to satisfy the return type of void*.
+
+Finally, going back to main() after the thread operations are complete, each process closes the semaphore, unmaps the
+memory, and revokes access to that memory segment in both processes. The program ends as each process runs return 0.
